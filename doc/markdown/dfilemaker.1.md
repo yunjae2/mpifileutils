@@ -14,17 +14,17 @@ suitable for testing.
 
 # OPTIONS
 
--d, \--depth=*min*-*max*
-:   Specify the depth of the filesystem tree to generate. The depth will be
-    selected at random within the bounds of min and max. The default depth
-    is set to 10 min, 20 max.
-
 -f, \--fill=*type*
 :   Specify the fill pattern of the file. Current options available are:
     `random`, `true`, `false`, and `alternate`. `random` will fill the file
     using urandom(4). `true` will fill the file with a 0xFF pattern. `false`
     will fill the file with a 0x00 pattern. `alternate` will fill the file
     with a 0xAA pattern. The default fill is `random`.
+
+-h, \--height=*min*-*max*
+:   Specify the height of the filesystem tree to generate. The height will be
+    selected at random within the bounds of min and max. The default height
+    is set to 10 min, 20 max.
 
 -r, \--ratio=*min*-*max*
 :   Specify the ratio of files to directories as a percentage. The ratio will
