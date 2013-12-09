@@ -14,6 +14,11 @@ suitable for testing.
 
 # OPTIONS
 
+-d, \--debug=*level*
+:   Specify the level of debug information to output. Level may be one of:
+    *fatal*, *err*, *warn*, *info*, or *dbg*. Increasingly verbose debug
+    levels include the output of less verbose debug levels.
+
 -f, \--fill=*type*
 :   Specify the fill pattern of the file. Current options available are:
     `random`, `true`, `false`, and `alternate`. `random` will fill the file
