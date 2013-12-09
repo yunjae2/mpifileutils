@@ -11,7 +11,16 @@ dfilemaker is a tool for generating files and file trees which contain
 files suitable for testing.
 .SH OPTIONS
 .TP
-.B \-d, \-\-depth=\f[I]min\f[]\-\f[I]max\f[]
+.B \-d, \-\-debug=\f[I]level\f[]
+Specify the level of debug information to output.
+Level may be one of: \f[I]fatal\f[], \f[I]err\f[], \f[I]warn\f[],
+\f[I]info\f[], or \f[I]dbg\f[].
+Increasingly verbose debug levels include the output of less verbose
+debug levels.
+.RS
+.RE
+.TP
+.B \-e, \-\-depth=\f[I]min\f[]\-\f[I]max\f[]
 Specify the depth of the filesystem tree to generate.
 The depth will be selected at random within the bounds of min and max.
 The default depth is set to 10 min, 20 max.
@@ -30,10 +39,9 @@ The default fill is \f[C]random\f[].
 .RS
 .RE
 .TP
-.B \-r, \-\-ratio=\f[I]min\f[]\-\f[I]max\f[]
-Specify the ratio of files to directories as a percentage.
-The ratio will be chosen at random within the bounds of min and max.
-The default ratio is 5% min to 20% max.
+.B \-h, \-\-help
+Print a brief message listing the \f[I]dfilemaker(1)\f[] options and
+usage.
 .RS
 .RE
 .TP
@@ -41,6 +49,13 @@ The default ratio is 5% min to 20% max.
 Specify the seed to use for random number generation.
 This can be used to create reproducible test runs.
 The default is to generate a random seed.
+.RS
+.RE
+.TP
+.B \-r, \-\-ratio=\f[I]min\f[]\-\f[I]max\f[]
+Specify the ratio of files to directories as a percentage.
+The ratio will be chosen at random within the bounds of min and max.
+The default ratio is 5% min to 20% max.
 .RS
 .RE
 .TP
@@ -52,22 +67,16 @@ The default file size is set from 1MB to 5MB.
 .RS
 .RE
 .TP
+.B \-v, \-\-version
+Print version information and exit.
+.RS
+.RE
+.TP
 .B \-w, \-\-width=\f[I]min\f[]\-\f[I]max\f[]
 Specify the width of the filesystem tree to generate.
 The width will be selected at random within the bounds of min and max.
 The width of the tree is determined by counting directories.
 The default width is set to 10 min, 20 max.
-.RS
-.RE
-.TP
-.B \-h, \-\-help
-Print a brief message listing the \f[I]dfilemaker(1)\f[] options and
-usage.
-.RS
-.RE
-.TP
-.B \-v, \-\-version
-Print version information and exit.
 .RS
 .RE
 .SH SEE ALSO
