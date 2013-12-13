@@ -1,3 +1,12 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <string.h>
+#include <ctype.h>
+
+#include <libcircle.h>
+
 #include "dfilemaker.h"
 
 /** Options specified by the user. */
