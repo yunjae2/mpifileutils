@@ -9,9 +9,92 @@
 #include <regex.h>
 
 #include "mpi.h"
+#include <uuid/uuid.h>
+#include <gurt/common.h>
+#include <gurt/hash.h>
+#include <daos.h>
+#include <daos_fs.h>
 
 #include "mfu.h"
 #include "common.h"
+
+static uuid_t pool_uuid;
+static uuid_t cont_uuid;
+static daos_handle_t poh;
+static daos_handle_t coh;
+static char *svc;
+static int rank, ranks;
+
+extern dfs_t *dfs;
+extern struct d_hash_table *dir_hash;
+
+enum handleType {
+        POOL_HANDLE,
+        CONT_HANDLE,
+	ARRAY_HANDLE
+};
+
+/* For DAOS methods. */
+#define DCHECK(rc, format, ...)                                         \
+do {                                                                    \
+        int _rc = (rc);                                                 \
+                                                                        \
+        if (_rc != 0) {                                                  \
+                fprintf(stderr, "ERROR (%s:%d): %d: %d: "               \
+                        format"\n", __FILE__, __LINE__, rank, _rc,	\
+                        ##__VA_ARGS__);                                 \
+                fflush(stderr);                                         \
+                exit(-1);                                       	\
+        }                                                               \
+} while (0)
+
+/* Distribute process 0's pool or container handle to others. */
+static void
+HandleDistribute(daos_handle_t *handle, enum handleType type)
+{
+        d_iov_t global;
+        int        rc;
+
+        global.iov_buf = NULL;
+        global.iov_buf_len = 0;
+        global.iov_len = 0;
+
+        if (rank == 0) {
+                /* Get the global handle size. */
+                if (type == POOL_HANDLE)
+                        rc = daos_pool_local2global(*handle, &global);
+                else
+                        rc = daos_cont_local2global(*handle, &global);
+                DCHECK(rc, "Failed to get global handle size");
+        }
+
+        MPI_Bcast(&global.iov_buf_len, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+ 
+	global.iov_len = global.iov_buf_len;
+        global.iov_buf = malloc(global.iov_buf_len);
+        if (global.iov_buf == NULL)
+		MPI_Abort(MPI_COMM_WORLD, -1);
+
+        if (rank == 0) {
+                if (type == POOL_HANDLE)
+                        rc = daos_pool_local2global(*handle, &global);
+                else
+                        rc = daos_cont_local2global(*handle, &global);
+                DCHECK(rc, "Failed to create global handle");
+        }
+
+        MPI_Bcast(global.iov_buf, global.iov_buf_len, MPI_BYTE, 0, MPI_COMM_WORLD);
+
+        if (rank != 0) {
+                if (type == POOL_HANDLE)
+                        rc = daos_pool_global2local(global, handle);
+                else
+                        rc = daos_cont_global2local(poh, global, handle);
+                DCHECK(rc, "Failed to get local handle");
+        }
+
+        free(global.iov_buf);
+}
 
 int MFU_PRED_EXEC  (mfu_flist flist, uint64_t idx, void* arg);
 int MFU_PRED_PRINT (mfu_flist flist, uint64_t idx, void* arg);
@@ -190,7 +273,6 @@ int main (int argc, char** argv)
     mfu_init();
 
     /* get our rank and the size of comm_world */
-    int rank, ranks;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &ranks);
 
@@ -206,8 +288,11 @@ int main (int argc, char** argv)
     mfu_pred* pred_head = mfu_pred_new();
     char* inputname  = NULL;
     char* outputname = NULL;
+    char *mnewer=NULL, *cnewer=NULL,*anewer=NULL;
+    mfu_pred_times* t;
     int walk = 0;
     int text = 0;
+    int rc;
 
     static struct option long_options[] = {
         {"input",     1, 0, 'i'},
@@ -228,6 +313,10 @@ int main (int argc, char** argv)
         { "name",     required_argument, NULL, 'n' },
         { "path",     required_argument, NULL, 'P' },
         { "regex",    required_argument, NULL, 'r' },
+
+        { "pool",     required_argument, NULL, 'x' },
+        { "cont",     required_argument, NULL, 'y' },
+        { "svcl",    required_argument, NULL, 'z' },
 
         { "amin",     required_argument, NULL, 'a' },
         { "mmin",     required_argument, NULL, 'm' },
@@ -264,7 +353,6 @@ int main (int argc, char** argv)
         int i;
         int space;
         char* buf;
-        mfu_pred_times* t;
         mfu_pred_times_rel* tr;
         regex_t* r;
         int ret;
@@ -372,34 +460,13 @@ int main (int argc, char** argv)
     	    break;
 
     	case 'B':
-            t = get_mtimes(optarg);
-            if (t == NULL) {
-                if (rank == 0) {
-    	            printf("%s: can't find file %s\n", argv[0], optarg);
-                }
-    	        exit(1);
-    	    }
-    	    mfu_pred_add(pred_head, MFU_PRED_ANEWER, (void *)t);
+	    anewer = MFU_STRDUP(optarg);
     	    break;
     	case 'N':
-            t = get_mtimes(optarg);
-            if (t == NULL) {
-                if (rank == 0) {
-    	            printf("%s: can't find file %s\n", argv[0], optarg);
-                }
-    	        exit(1);
-    	    }
-    	    mfu_pred_add(pred_head, MFU_PRED_MNEWER, (void *)t);
+	    mnewer = MFU_STRDUP(optarg);
     	    break;
     	case 'D':
-            t = get_mtimes(optarg);
-            if (t == NULL) {
-                if (rank == 0) {
-    	            printf("%s: can't find file %s\n", argv[0], optarg);
-                }
-    	        exit(1);
-    	    }
-    	    mfu_pred_add(pred_head, MFU_PRED_CNEWER, (void *)t);
+	    cnewer = MFU_STRDUP(optarg);
     	    break;
     
     	case 'p':
@@ -414,6 +481,24 @@ int main (int argc, char** argv)
                 }
     	        exit(1);
             }
+    	    break;
+
+        case 'x':
+	    ret = uuid_parse(optarg, pool_uuid);
+	    if (ret) {
+		    printf("%s: invalid pool uuid %s\n", argv[0], optarg);
+		    exit(1);
+	    }
+    	    break;
+        case 'y':
+	    ret = uuid_parse(optarg, cont_uuid);
+	    if (ret) {
+		    printf("%s: invalid container uuid %s\n", argv[0], optarg);
+		    exit(1);
+	    }
+    	    break;
+        case 'z':
+    	    svc = MFU_STRDUP(optarg);
     	    break;
     
         case 'i':
@@ -440,7 +525,69 @@ int main (int argc, char** argv)
             }
     	}
     }
-    
+
+    rc = daos_init();
+    DCHECK(rc, "Failed to initialize daos");
+
+    if (rank == 0) {
+        d_rank_list_t *svcl = NULL;
+	daos_pool_info_t pool_info;
+	daos_cont_info_t co_info;
+
+	svcl = daos_rank_list_parse(svc, ":");
+	if (svcl == NULL)
+		MPI_Abort(MPI_COMM_WORLD, -1);
+
+	/** Connect to DAOS pool */
+	rc = daos_pool_connect(pool_uuid, NULL, svcl, DAOS_PC_RW,
+			       &poh, &pool_info, NULL);
+	d_rank_list_free(svcl);
+	DCHECK(rc, "Failed to connect to pool");
+
+	rc = daos_cont_open(poh, cont_uuid, DAOS_COO_RW, &coh, &co_info,
+			    NULL);
+	/* If NOEXIST we create it */
+	if (rc)
+		DCHECK(rc, "Failed to open container");
+    }
+    HandleDistribute(&poh, POOL_HANDLE);
+    HandleDistribute(&coh, CONT_HANDLE);
+
+    rc = dfs_mount(poh, coh, O_RDWR, &dfs);
+    DCHECK(rc, "Failed to mount DFS namespace");
+    dir_hash = NULL;
+
+    if (anewer) {
+        t = get_mtimes(anewer);
+	if (t == NULL) {
+            if (rank == 0)
+		printf("can't find file %s\n", anewer);
+	    exit(1);
+	}
+	mfu_pred_add(pred_head, MFU_PRED_ANEWER, (void *)t);
+	free(anewer);
+    }
+    if (mnewer) {
+        t = get_mtimes(mnewer);
+	if (t == NULL) {
+            if (rank == 0)
+		printf("can't find file %s\n", mnewer);
+	    exit(1);
+	}
+	mfu_pred_add(pred_head, MFU_PRED_MNEWER, (void *)t);
+	free(mnewer);
+    }
+    if (cnewer) {
+        t = get_mtimes(cnewer);
+	if (t == NULL) {
+            if (rank == 0)
+		printf("can't find file %s\n", cnewer);
+	    exit(1);
+	}
+	mfu_pred_add(pred_head, MFU_PRED_CNEWER, (void *)t);
+	free(cnewer);
+    }
+
     pred_commit(pred_head);
 
     /* paths to walk come after the options */
@@ -483,7 +630,6 @@ int main (int argc, char** argv)
         return 0;
     }
 
-
     /* create an empty file list */
     mfu_flist flist = mfu_flist_new();
 
@@ -506,6 +652,25 @@ int main (int argc, char** argv)
         } else {
             mfu_flist_write_text(outputname, flist2);
         }
+    }
+
+    if (rank == 0)
+	    MFU_LOG(MFU_LOG_INFO, "Full Scanned List:");
+    mfu_flist_print_summary(flist);
+    if (rank == 0)
+	    MFU_LOG(MFU_LOG_INFO, "Matched List:");
+    mfu_flist_print_summary(flist2);
+
+    mfu_flist_summarize(flist);
+    mfu_flist_summarize(flist2);
+
+    if (rank == 0) {
+	    uint64_t total, matched;
+
+	    total = mfu_flist_global_size(flist);
+	    matched = mfu_flist_global_size(flist2);
+	    printf("MATCHED %llu/%llu\n", matched, total);
+    
     }
 
     /* free off the filtered list */
@@ -532,6 +697,23 @@ int main (int argc, char** argv)
 
     /* free the walk options */
     mfu_walk_opts_delete(&walk_opts);
+
+    d_hash_table_destroy(dir_hash, true /* force */);
+
+    rc = dfs_umount(dfs);
+    DCHECK(rc, "Failed to umount DFS namespace");
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    rc = daos_cont_close(coh, NULL);
+    DCHECK(rc, "Failed to close container (%d)", rc);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    rc = daos_pool_disconnect(poh, NULL);
+    DCHECK(rc, "Failed to disconnect from pool");
+    MPI_Barrier(MPI_COMM_WORLD);
+    usleep(200 * rank);
+    rc = daos_fini();
+    DCHECK(rc, "Failed to finalize DAOS");
 
     /* shut down MPI */
     mfu_finalize();

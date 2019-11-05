@@ -12,6 +12,7 @@ extern "C" {
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <errno.h>
 #include "mpi.h"
 
 #include <stdio.h>
