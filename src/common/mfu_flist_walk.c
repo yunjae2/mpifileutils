@@ -50,6 +50,10 @@ static const char** CURRENT_DIRS;
 static flist_t* CURRENT_LIST;
 static int SET_DIR_PERMS;
 static int REMOVE_FILES;
+static bool stop_walk;
+
+double start_time;
+int stonewall;
 
 /****************************************
  * Global counter and callbacks for LIBCIRCLE reductions
@@ -473,6 +477,12 @@ static void walk_readdir_process_dir(const char* dir, CIRCLE_handle* handle)
     else {
         /* Read all directory entries */
         while (1) {
+    	    double cur = MPI_Wtime();
+	    if (stonewall && cur - start_time >= stonewall) {
+		stop_walk = true;
+		break;
+	    }
+
             /* read next directory entry */
             struct dirent* entry = mfu_readdir(dirp);
             if (entry == NULL) {
@@ -604,6 +614,12 @@ static void walk_stat_process_dir(char* dir, CIRCLE_handle* handle)
     }
     else {
         while (1) {
+    	    double cur = MPI_Wtime();
+	    if (stonewall && cur - start_time >= stonewall) {
+		stop_walk = true;
+		break;
+	    }
+
             /* read next directory entry */
             struct dirent* entry = mfu_readdir(dirp);
             if (entry == NULL) {
