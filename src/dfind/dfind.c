@@ -698,7 +698,8 @@ int main (int argc, char** argv)
     /* free the walk options */
     mfu_walk_opts_delete(&walk_opts);
 
-    d_hash_table_destroy(dir_hash, true /* force */);
+    if (dir_hash)
+      d_hash_table_destroy(dir_hash, true /* force */);
 
     rc = dfs_umount(dfs);
     DCHECK(rc, "Failed to umount DFS namespace");
