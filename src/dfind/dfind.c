@@ -27,6 +27,8 @@ static int rank, ranks;
 
 extern dfs_t *dfs;
 extern struct d_hash_table *dir_hash;
+extern double start_time;
+extern int stonewall;
 
 enum handleType {
         POOL_HANDLE,
@@ -316,7 +318,8 @@ int main (int argc, char** argv)
 
         { "pool",     required_argument, NULL, 'x' },
         { "cont",     required_argument, NULL, 'y' },
-        { "svcl",    required_argument, NULL, 'z' },
+        { "svcl",    required_argument, NULL,  'z' },
+        { "stonewall", required_argument, NULL, 'W' },
 
         { "amin",     required_argument, NULL, 'a' },
         { "mmin",     required_argument, NULL, 'm' },
@@ -500,7 +503,9 @@ int main (int argc, char** argv)
         case 'z':
     	    svc = MFU_STRDUP(optarg);
     	    break;
-    
+	case 'W':
+            stonewall = atoi(optarg);
+	    break;
         case 'i':
             inputname = MFU_STRDUP(optarg);
             break;
@@ -557,6 +562,7 @@ int main (int argc, char** argv)
     DCHECK(rc, "Failed to mount DFS namespace");
     dir_hash = NULL;
 
+    start_time = MPI_Wtime();
     if (anewer) {
         t = get_mtimes(anewer);
 	if (t == NULL) {
