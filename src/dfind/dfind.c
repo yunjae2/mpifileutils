@@ -23,6 +23,7 @@ static uuid_t cont_uuid;
 static daos_handle_t poh;
 static daos_handle_t coh;
 static char *svc;
+static char *dfs_prefix;
 static int rank, ranks;
 
 extern dfs_t *dfs;
@@ -318,7 +319,8 @@ int main (int argc, char** argv)
 
         { "pool",     required_argument, NULL, 'x' },
         { "cont",     required_argument, NULL, 'y' },
-        { "svcl",    required_argument, NULL,  'z' },
+        { "svcl",     required_argument, NULL, 'z' },
+        { "prefix",   required_argument, NULL, 'X' },
         { "stonewall", required_argument, NULL, 'W' },
 
         { "amin",     required_argument, NULL, 'a' },
@@ -503,6 +505,9 @@ int main (int argc, char** argv)
         case 'z':
     	    svc = MFU_STRDUP(optarg);
     	    break;
+        case 'X':
+    	    dfs_prefix = MFU_STRDUP(optarg);
+    	    break;
 	case 'W':
             stonewall = atoi(optarg);
 	    break;
@@ -560,6 +565,10 @@ int main (int argc, char** argv)
 
     rc = dfs_mount(poh, coh, O_RDWR, &dfs);
     DCHECK(rc, "Failed to mount DFS namespace");
+    if (dfs_prefix) {
+	    rc = dfs_set_prefix(dfs, dfs_prefix);
+	    DCHECK(rc, "Failed to set DFS Prefix");
+    }
     dir_hash = NULL;
 
     start_time = MPI_Wtime();
