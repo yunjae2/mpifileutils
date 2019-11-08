@@ -294,7 +294,7 @@ int main (int argc, char** argv)
     char *mnewer=NULL, *cnewer=NULL,*anewer=NULL;
     mfu_pred_times* t;
     int walk = 0;
-    int text = 0;
+    int text = 1;
     int rc;
 
     static struct option long_options[] = {
@@ -669,6 +669,9 @@ int main (int argc, char** argv)
         }
     }
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    fflush(stdout);
+
     if (rank == 0)
 	    MFU_LOG(MFU_LOG_INFO, "Full Scanned List:");
     mfu_flist_print_summary(flist);
@@ -727,7 +730,7 @@ int main (int argc, char** argv)
     rc = daos_pool_disconnect(poh, NULL);
     DCHECK(rc, "Failed to disconnect from pool");
     MPI_Barrier(MPI_COMM_WORLD);
-    usleep(200 * rank);
+
     rc = daos_fini();
     DCHECK(rc, "Failed to finalize DAOS");
 
