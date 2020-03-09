@@ -25,23 +25,23 @@ static int mpi_rank;
 dfs_t *dfs;
 struct d_hash_table *dir_hash;
 
-struct aiori_dir_hdl {
+struct mfu_dir_hdl {
         d_list_t	entry;
         dfs_obj_t	*oh;
         char		name[PATH_MAX];
 };
 
-static inline struct aiori_dir_hdl *
+static inline struct mfu_dir_hdl *
 hdl_obj(d_list_t *rlink)
 {
-        return container_of(rlink, struct aiori_dir_hdl, entry);
+        return container_of(rlink, struct mfu_dir_hdl, entry);
 }
 
 static bool
 key_cmp(struct d_hash_table *htable, d_list_t *rlink,
 	const void *key, unsigned int ksize)
 {
-        struct aiori_dir_hdl *hdl = hdl_obj(rlink);
+        struct mfu_dir_hdl *hdl = hdl_obj(rlink);
 
         return (strcmp(hdl->name, (const char *)key) == 0);
 }
@@ -49,7 +49,7 @@ key_cmp(struct d_hash_table *htable, d_list_t *rlink,
 static void
 rec_free(struct d_hash_table *htable, d_list_t *rlink)
 {
-        struct aiori_dir_hdl *hdl = hdl_obj(rlink);
+        struct mfu_dir_hdl *hdl = hdl_obj(rlink);
 
         assert(d_hash_rec_unlinked(&hdl->entry));
         dfs_release(hdl->oh);
@@ -64,7 +64,7 @@ static d_hash_table_ops_t hdl_hash_ops = {
 static dfs_obj_t *
 lookup_insert_dir(const char *name)
 {
-        struct aiori_dir_hdl *hdl;
+        struct mfu_dir_hdl *hdl;
         d_list_t *rlink;
         int rc;
 
@@ -82,7 +82,7 @@ lookup_insert_dir(const char *name)
                 return hdl->oh;
         }
 
-        hdl = calloc(1, sizeof(struct aiori_dir_hdl));
+        hdl = calloc(1, sizeof(struct mfu_dir_hdl));
         if (hdl == NULL)
 		return NULL;
 
@@ -292,7 +292,6 @@ int mfu_lstat(const char* path, struct stat* buf)
     parse_filename(path, &name, &dir_name);
 
     assert(dir_name);
-    assert(name);
 
     parent = lookup_insert_dir(dir_name);
     if (parent == NULL) {
