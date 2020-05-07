@@ -125,7 +125,7 @@ int mfu_mkdir(const char* dir, mode_t mode);
 int mfu_rmdir(const char* dir);
 
 /* open directory, retry a few times on EINTR or EIO */
-DIR* mfu_opendir(const char* dir);
+DIR* mfu_opendir(const char* dir, int *shard);
 
 /* close directory, retry a few times on EINTR or EIO */
 int mfu_closedir(DIR* dirp);

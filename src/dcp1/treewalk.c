@@ -195,7 +195,7 @@ static void DCOPY_stat_process_dir(DCOPY_operation_t* op,
     }
 
     /* iterate through source directory and add items to queue */
-    DIR* curr_dir = mfu_opendir(op->operand);
+    DIR* curr_dir = mfu_opendir(op->operand, NULL);
 
     if(curr_dir == NULL) {
         /* failed to open directory */

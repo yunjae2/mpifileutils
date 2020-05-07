@@ -31,6 +31,16 @@ struct mfu_dir_hdl {
         char		name[PATH_MAX];
 };
 
+#define NUM_DIRENTS 24
+
+struct dfs_mfu_t {
+	dfs_obj_t *dir;
+	int num_ents;
+	int num_splits;
+	struct dirent ents[NUM_DIRENTS];
+	daos_anchor_t anchor;
+};
+
 static inline struct mfu_dir_hdl *
 hdl_obj(d_list_t *rlink)
 {
@@ -91,7 +101,7 @@ lookup_insert_dir(const char *name)
 
         rc = dfs_lookup(dfs, name, O_RDWR, &hdl->oh, NULL, NULL);
 	if (rc) {
-		fprintf(stderr, "dfs_lookup() of %s Failed", name);
+		fprintf(stderr, "dfs_lookup() of %s Failed\n", name);
 		return NULL;
 	}
 
@@ -741,17 +751,8 @@ retry:
     return rc;
 }
 
-#define NUM_DIRENTS 24
-
-struct dfs_mfu_t {
-	dfs_obj_t *dir;
-	struct dirent ents[NUM_DIRENTS];
-	daos_anchor_t anchor;
-	int num_ents;
-};
-
 /* open directory, retry a few times on EINTR or EIO */
-DIR* mfu_opendir(const char* dir)
+DIR* mfu_opendir(const char* dir, int *nr)
 {
     struct dfs_mfu_t *dirp = NULL;
     int rc;
@@ -762,10 +763,34 @@ DIR* mfu_opendir(const char* dir)
 
     rc = dfs_lookup(dfs, dir, O_RDWR, &dirp->dir, NULL, NULL);
     if (rc) {
+	    free(dirp);
 	    fprintf(stderr, "dfs_lookup %s failed (%d)\n", dir, rc);
 	    return NULL;
     }
 
+    if (*nr == -1) {
+	    dirp->num_splits = 0;
+	    rc = dfs_obj_anchor_split(dirp->dir, &dirp->num_splits, NULL);
+	    if (rc) {
+		    fprintf(stderr, "dfs_obj_anchor_split failed (%d)", rc);
+		    dfs_release(dirp->dir);
+		    free(dirp);
+		    return NULL;
+	    }
+	    *nr = dirp->num_splits;
+	    goto done;
+    }
+
+    assert(*nr >= 0);
+    rc = dfs_obj_anchor_set(dirp->dir, *nr, &dirp->anchor);
+    if (rc) {
+	    fprintf(stderr, "dfs_anchor_split failed (%d)", rc);
+	    dfs_release(dirp->dir);
+	    free(dirp);
+	    return NULL;
+    }
+
+done:
     return (DIR *)dirp;
 }
 

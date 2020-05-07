@@ -54,6 +54,7 @@ static bool stop_walk;
 
 double start_time;
 int stonewall;
+int rank_g;
 
 /****************************************
  * Global counter and callbacks for LIBCIRCLE reductions
@@ -177,7 +178,7 @@ static int lustre_mds_stat(int fd, char* fname, struct stat* sb)
 static void walk_lustrestat_process_dir(const char* dir, CIRCLE_handle* handle)
 {
     /* TODO: may need to try these functions multiple times */
-    DIR* dirp = mfu_opendir(dir);
+	DIR* dirp = mfu_opendir(dir, NULL);
 
     if (! dirp) {
         /* TODO: print error */
@@ -450,7 +451,7 @@ static void walk_getdents_process(CIRCLE_handle* handle)
 static void walk_readdir_process_dir(const char* dir, CIRCLE_handle* handle)
 {
     /* TODO: may need to try these functions multiple times */
-    DIR* dirp = mfu_opendir(dir);
+	DIR* dirp = mfu_opendir(dir, NULL);
 
     /* if there is a permissions error and the usr read & execute are being turned
      * on when walk_stat=0 then catch the permissions error and turn the bits on */
@@ -462,7 +463,7 @@ static void walk_readdir_process_dir(const char* dir, CIRCLE_handle* handle)
             st.st_mode |= S_IRUSR;
             st.st_mode |= S_IXUSR;
             mfu_chmod(dir, st.st_mode);
-            dirp = mfu_opendir(dir);
+            dirp = mfu_opendir(dir, NULL);
             if (dirp == NULL) {
                 if (errno == EACCES) {
                     MFU_LOG(MFU_LOG_ERR, "Failed to open directory with opendir: `%s' (errno=%d %s)", dir, errno, strerror(errno));
@@ -488,7 +489,7 @@ static void walk_readdir_process_dir(const char* dir, CIRCLE_handle* handle)
             if (entry == NULL) {
                 break;
             }
-
+	    printf("%d: Entry: %s\n", rank_g, entry->d_name);
             /* process component, unless it's "." or ".." */
             char* name = entry->d_name;
             if ((strncmp(name, ".", 2)) && (strncmp(name, "..", 3))) {
@@ -604,16 +605,38 @@ static void walk_readdir_process(CIRCLE_handle* handle)
  * Walk directory tree using stat on every object
  ***************************************/
 
-static void walk_stat_process_dir(char* dir, CIRCLE_handle* handle)
+static void walk_stat_process_dir(char* dir, int idx, CIRCLE_handle* handle)
 {
-    /* TODO: may need to try these functions multiple times */
-    DIR* dirp = mfu_opendir(dir);
+    DIR* dirp;
 
-    if (! dirp) {
-        /* TODO: print error */
+    //int rank;
+    //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    if (idx == -1) {
+	int nr = -1, i;
+	char path[CIRCLE_MAX_STRING_LEN];
+
+	//printf("%d: NEW DIR %s\n", rank, dir);
+        dirp = mfu_opendir(dir, &nr);
+	for (i=0 ; i<nr; i++) {
+	    sprintf(path, "~~%d:%s", i, dir);
+
+	    //printf("%d: Enqeue PATH %s\n", rank, path);
+	    /* add item to queue */
+	    handle->enqueue(path);
+	}
+	mfu_closedir(dirp);
+	return;
     }
-    else {
-        while (1) {
+
+    //printf("%d: DIR %s, idx %d\n", rank, dir, idx);
+    dirp = mfu_opendir(dir, &idx);
+    if (dirp == NULL) {
+	    fprintf(stderr, "failed to open dir %s\n", dir);
+	    MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    while (1) {
     	    double cur = MPI_Wtime();
 	    if (stonewall && cur - start_time >= stonewall) {
 		stop_walk = true;
@@ -647,7 +670,6 @@ static void walk_stat_process_dir(char* dir, CIRCLE_handle* handle)
                 }
             }
         }
-    }
 
     mfu_closedir(dirp);
 
@@ -670,30 +692,41 @@ static void walk_stat_process(CIRCLE_handle* handle)
 {
     /* get path from queue */
     char path[CIRCLE_MAX_STRING_LEN];
+    char tmp_path[CIRCLE_MAX_STRING_LEN];
+    int idx;
+    struct stat st;
     handle->dequeue(path);
 
-    /* stat item */
-    struct stat st;
-    int status = mfu_lstat(path, &st);
-    if (status != 0) {
-        /* print error */
-        return;
+    if (strncmp(path, "~~", 2) == 0) { 
+	    sscanf(path, "~~%d:%s", &idx, tmp_path);
+    } else {
+	    strcpy(tmp_path, path);
+	    idx = -1;
     }
 
-    /* increment our item count */
-    reduce_items++;
+    if (idx == -1) {
+	    /* stat item */
+	    int status = mfu_lstat(tmp_path, &st);
+	    if (status != 0) {
+		    /* print error */
+		    return;
+	    }
 
-    /* TODO: filter items by stat info */
+	    /* increment our item count */
+	    reduce_items++;
 
-    if (REMOVE_FILES && !S_ISDIR(st.st_mode)) {
-        mfu_unlink(path);
-    } else {
-        /* record info for item in list */
-        mfu_flist_insert_stat(CURRENT_LIST, path, st.st_mode, &st);
+	    /* TODO: filter items by stat info */
+
+	    if (REMOVE_FILES && !S_ISDIR(st.st_mode)) {
+		    mfu_unlink(tmp_path);
+	    } else {
+		    /* record info for item in list */
+		    mfu_flist_insert_stat(CURRENT_LIST, tmp_path, st.st_mode, &st);
+	    }
     }
 
     /* recurse into directory */
-    if (S_ISDIR(st.st_mode)) {
+    if (idx != -1 || S_ISDIR(st.st_mode)) {
         /* before more processing check if SET_DIR_PERMS is set,
          * and set usr read and execute bits if need be */
         if (SET_DIR_PERMS) {
@@ -704,11 +737,11 @@ static void walk_stat_process(CIRCLE_handle* handle)
             if (!((usr_r_mask & st.st_mode) && (usr_x_mask & st.st_mode))) {
                 st.st_mode |= S_IRUSR;
                 st.st_mode |= S_IXUSR;
-                mfu_chmod(path, st.st_mode);
+                mfu_chmod(tmp_path, st.st_mode);
             }
         }
         /* TODO: check that we can recurse into directory */
-        walk_stat_process_dir(path, handle);
+        walk_stat_process_dir(tmp_path, idx, handle);
     }
 
     return;
@@ -748,7 +781,7 @@ void mfu_flist_walk_paths(uint64_t num_paths, const char** paths,
     int rank, ranks;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &ranks);
-
+    rank_g = rank;
     /* print message to user that we're starting */
     if (mfu_debug_level >= MFU_LOG_VERBOSE && mfu_rank == 0) {
         uint64_t i;
