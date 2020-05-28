@@ -347,7 +347,7 @@ int main (int argc, char** argv)
     
     int usage = 0;
     while (1) {
-        int c = getopt_long(
+        int c = getopt_long_only(
                     argc, argv, "i:o:t:vqh",
                     long_options, NULL
                 );
