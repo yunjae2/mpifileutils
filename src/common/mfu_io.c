@@ -31,7 +31,7 @@ struct mfu_dir_hdl {
         char		name[PATH_MAX];
 };
 
-#define NUM_DIRENTS 24
+#define NUM_DIRENTS 112
 
 struct dfs_mfu_t {
 	dfs_obj_t *dir;
