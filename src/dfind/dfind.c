@@ -288,7 +288,7 @@ int main (int argc, char** argv)
 
     /* pointer to mfu_walk_opts */
     mfu_walk_opts_t* walk_opts = mfu_walk_opts_new();
-    //walk_opts->use_stat = 0;
+    walk_opts->use_stat = 0;
 
     /* capture current time for any time based queries,
      * to get a consistent value, capture and bcast from rank 0 */

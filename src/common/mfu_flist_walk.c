@@ -455,13 +455,10 @@ static void walk_readdir_process_dir(const char* dir, int idx, CIRCLE_handle* ha
 	if (idx == -1) {
 		int nr = -1, i;
 		char path[CIRCLE_MAX_STRING_LEN];
-
+		
 		dirp = mfu_opendir(dir, &nr);
 		for (i=0 ; i<nr; i++) {
 			sprintf(path, "~~%d:%s", i, dir);
-
-			//printf("%d: Enqeue PATH %s\n", rank, path);
-			/* add item to queue */
 			handle->enqueue(path);
 		}
 		mfu_closedir(dirp);
@@ -545,11 +542,13 @@ static void walk_readdir_process_dir(const char* dir, int idx, CIRCLE_handle* ha
                         if (status == 0) {
                             have_mode = 1;
                             mode = st.st_mode;
+
                             /* unlink files here if remove option is on,
                              * and stat was necessary to get type */
                             if (REMOVE_FILES && !S_ISDIR(st.st_mode)) {
                                 mfu_unlink(newpath);
                             } else {
+				    //printf("PATH %s %zu\n", newpath, st.st_size);
                                 mfu_flist_insert_stat(CURRENT_LIST, newpath, mode, &st);
                             }
                         }
@@ -838,7 +837,7 @@ void mfu_flist_walk_paths(uint64_t num_paths, const char** paths,
     /* we lookup users and groups first in case we can use
      * them to filter the walk */
     flist->detail = 0;
-    if (walk_opts->use_stat) {
+    if (1 || walk_opts->use_stat) {
         flist->detail = 1;
         if (flist->have_users == 0) {
             mfu_flist_usrgrp_get_users(flist);
