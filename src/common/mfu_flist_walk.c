@@ -448,10 +448,31 @@ static void walk_getdents_process(CIRCLE_handle* handle)
  * Walk directory tree using stat at top level and readdir
  ***************************************/
 
-static void walk_readdir_process_dir(const char* dir, CIRCLE_handle* handle)
+static void walk_readdir_process_dir(const char* dir, int idx, CIRCLE_handle* handle)
 {
-    /* TODO: may need to try these functions multiple times */
-	DIR* dirp = mfu_opendir(dir, NULL);
+	DIR* dirp;
+
+	if (idx == -1) {
+		int nr = -1, i;
+		char path[CIRCLE_MAX_STRING_LEN];
+
+		dirp = mfu_opendir(dir, &nr);
+		for (i=0 ; i<nr; i++) {
+			sprintf(path, "~~%d:%s", i, dir);
+
+			//printf("%d: Enqeue PATH %s\n", rank, path);
+			/* add item to queue */
+			handle->enqueue(path);
+		}
+		mfu_closedir(dirp);
+		return;
+	}
+
+    dirp = mfu_opendir(dir, &idx);
+    if (dirp == NULL) {
+	    fprintf(stderr, "failed to open dir %s\n", dir);
+	    MPI_Abort(MPI_COMM_WORLD, 1);
+    }
 
     /* if there is a permissions error and the usr read & execute are being turned
      * on when walk_stat=0 then catch the permissions error and turn the bits on */
@@ -489,7 +510,6 @@ static void walk_readdir_process_dir(const char* dir, CIRCLE_handle* handle)
             if (entry == NULL) {
                 break;
             }
-	    printf("%d: Entry: %s\n", rank_g, entry->d_name);
             /* process component, unless it's "." or ".." */
             char* name = entry->d_name;
             if ((strncmp(name, ".", 2)) && (strncmp(name, "..", 3))) {
@@ -542,9 +562,8 @@ static void walk_readdir_process_dir(const char* dir, CIRCLE_handle* handle)
                     reduce_items++;
 
                     /* recurse into directories */
-                    if (have_mode && S_ISDIR(mode)) {
-                        handle->enqueue(newpath);
-                    }
+                    if (have_mode && S_ISDIR(mode))
+			    handle->enqueue(newpath);
 #endif
                 }
                 else {
@@ -584,7 +603,7 @@ static void walk_readdir_create(CIRCLE_handle* handle)
 
         /* recurse into directory */
         if (S_ISDIR(st.st_mode)) {
-            walk_readdir_process_dir(path, handle);
+		walk_readdir_process_dir(path, -1, handle);
         }
     }
 
@@ -597,7 +616,18 @@ static void walk_readdir_process(CIRCLE_handle* handle)
     /* in this case, only items on queue are directories */
     char path[CIRCLE_MAX_STRING_LEN];
     handle->dequeue(path);
-    walk_readdir_process_dir(path, handle);
+
+    char tmp_path[CIRCLE_MAX_STRING_LEN];
+    int idx;
+
+    if (strncmp(path, "~~", 2) == 0) { 
+	    sscanf(path, "~~%d:%s", &idx, tmp_path);
+    } else {
+	    strcpy(tmp_path, path);
+	    idx = -1;
+    }
+
+    walk_readdir_process_dir(tmp_path, idx, handle);
     return;
 }
 
