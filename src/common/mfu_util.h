@@ -30,28 +30,28 @@ extern "C" {
 #include "endian.h"
 #endif
 
-#ifdef HAVE_BYTESWAP_H
+//#ifdef HAVE_BYTESWAP_H
 #include "byteswap.h"
-#else
-#error Failed to find required byteswap
-#endif
+//#else
+//#error Failed to find required byteswap
+//#endif
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-#ifdef HAVE_BYTESWAP_H
+//#ifdef HAVE_BYTESWAP_H
 # define mfu_ntoh16(x) bswap_16(x)
 # define mfu_ntoh32(x) bswap_32(x)
 # define mfu_ntoh64(x) bswap_64(x)
 # define mfu_hton16(x) bswap_16(x)
 # define mfu_hton32(x) bswap_32(x)
 # define mfu_hton64(x) bswap_64(x)
-#else
-# define mfu_ntoh16(x) mfu_bswap_16(x)
-# define mfu_ntoh32(x) mfu_bswap_32(x)
-# define mfu_ntoh64(x) mfu_bswap_64(x)
-# define mfu_hton16(x) mfu_bswap_16(x)
-# define mfu_hton32(x) mfu_bswap_32(x)
-# define mfu_hton64(x) mfu_bswap_64(x)
-#endif
+//#else
+//# define mfu_ntoh16(x) mfu_bswap_16(x)
+//# define mfu_ntoh32(x) mfu_bswap_32(x)
+//# define mfu_ntoh64(x) mfu_bswap_64(x)
+//# define mfu_hton16(x) mfu_bswap_16(x)
+//# define mfu_hton32(x) mfu_bswap_32(x)
+//# define mfu_hton64(x) mfu_bswap_64(x)
+//#endif
 #else
 # define mfu_ntoh16(x) (x)
 # define mfu_ntoh32(x) (x)

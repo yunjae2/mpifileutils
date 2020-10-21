@@ -9,6 +9,8 @@ struct {
 extern uint64_t now_secs;
 extern uint64_t now_usecs;
 
+int dfind_main(int argc, char** argv);
+
 #undef DEBUG
 
 #ifdef DEBUG
