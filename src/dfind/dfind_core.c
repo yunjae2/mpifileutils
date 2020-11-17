@@ -116,7 +116,7 @@ int MFU_PRED_EXEC (mfu_flist flist, uint64_t idx, void* arg)
     char* command = MFU_STRDUP((char*) arg);
     char* cmdline = (char*) MFU_MALLOC(argmax);
     char* subst = strstr(command, "{}");
-    
+
     if (subst) {
         subst[0] = '\0';
         subst += 2; /* Point to the first char after '{}' */
@@ -131,7 +131,7 @@ int MFU_PRED_EXEC (mfu_flist flist, uint64_t idx, void* arg)
         mfu_free(&command);
         return -1;
     }
-    
+
     ret = system(cmdline);
 
     mfu_free(&cmdline);
@@ -244,7 +244,7 @@ static int add_type(mfu_pred* p, char t)
     case 's':
         *type = S_IFSOCK;
         break;
-    
+
     default:
         /* unsupported type character */
         mfu_free(&type);
@@ -269,7 +269,7 @@ static void pred_commit (mfu_pred* p)
         }
         cur = cur->next;
     }
-    
+
     if (need_print) {
 //        mfu_pred_add(p, MFU_PRED_PRINT, NULL);
     }
@@ -350,7 +350,7 @@ int dfind_main (int argc, char** argv)
     };
 
     options.maxdepth = INT_MAX;
-    
+
     int usage = 0;
     while (1) {
         int c = getopt_long_only(
@@ -398,7 +398,7 @@ int dfind_main (int argc, char** argv)
     	    buf[strlen(buf)] = '\0'; /* clobbers trailing space */
     	    mfu_pred_add(pred_head, MFU_PRED_EXEC, buf);
     	    break;
-    
+
     	case 'd':
     	    options.maxdepth = atoi(optarg);
     	    break;
@@ -444,7 +444,7 @@ int dfind_main (int argc, char** argv)
             }
     	    mfu_pred_add(pred_head, MFU_PRED_REGEX, (void*)r);
     	    break;
-    
+
     	case 'a':
             tr = mfu_pred_relative(optarg, now_t);
     	    mfu_pred_add(pred_head, MFU_PRED_AMIN, (void *)tr);
@@ -480,11 +480,11 @@ int dfind_main (int argc, char** argv)
     	case 'D':
 	    cnewer = MFU_STRDUP(optarg);
     	    break;
-    
+
     	case 'p':
     	    mfu_pred_add(pred_head, MFU_PRED_PRINT, NULL);
     	    break;
-    
+
     	case 't':
             ret = add_type(pred_head, *optarg);
             if (ret != 1) {
@@ -542,6 +542,8 @@ int dfind_main (int argc, char** argv)
             }
     	}
     }
+
+    start_time = MPI_Wtime();
 
     rc = daos_init();
     DCHECK(rc, "Failed to initialize daos");
@@ -642,7 +644,7 @@ int dfind_main (int argc, char** argv)
             usage = 1;
         }
     }
-    
+
     if (usage) {
         if (rank == 0) {
             print_usage();
@@ -695,7 +697,7 @@ int dfind_main (int argc, char** argv)
 	    total = mfu_flist_global_size(flist);
 	    matched = mfu_flist_global_size(flist2);
 	    printf("MATCHED %llu/%llu\n", matched, total);
-    
+
     }
 
     /* free off the filtered list */
@@ -780,7 +782,7 @@ pfind_find_results_t * pfind_find(pfind_options_t * opt)
     int rc;
 
     options.maxdepth = INT_MAX;
-    
+
     int i;
     int space;
     char* buf;
